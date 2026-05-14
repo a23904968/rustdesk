@@ -1,0 +1,61 @@
+name: Build Silent Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload-artifact:
+        description: 'Upload artifact after build'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  RUST_VERSION: "stable"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+
+jobs:
+  build-windows:
+    name: Windows x64 Silent Mode
+    runs-on: windows-2022
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+
+      - name: Install vcpkg dependencies
+        shell: bash
+        run: |
+          $VCPKG_ROOT/vcpkg install --x-install-root="$VCPKG_ROOT/installed"
+
+      - name: Build
+        shell: bash
+        run: |
+          cargo build --release --features inline --locked
+
+      - name: Copy executable
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp target/release/rustdesk.exe artifacts/
+
+      - name: Upload artifact
+        if: inputs.upload-artifact == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-silent-windows-x64
+          path: artifacts/rustdesk.exe
+          retention-days: 30
